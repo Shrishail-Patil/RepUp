@@ -15,14 +15,9 @@ export default function MarkdownWorkoutPlanPage() {
   const userId = cookies.uid;
 
   useEffect(() => {
-    if (!userId) {
-      console.log('No user ID found in cookies. User might not be logged in.');
-      setLoading(false);
-      return;
-    }
-
     const fetchWorkoutPlan = async () => {
       if (!userId) {
+        console.log('No user ID found in cookies. User might not be logged in.');
         setLoading(false);
         return;
       }
@@ -53,7 +48,21 @@ export default function MarkdownWorkoutPlanPage() {
     doc.setFontSize(18);
     doc.text("Workout Plan", 14, 22);
     doc.setFontSize(12);
-    doc.text(workoutPlan, 14, 32);
+    
+    // Split the workoutPlan into lines to avoid overflow
+    const lines = doc.splitTextToSize(workoutPlan, 180); // Adjust width as needed
+    let y = 32; // Starting y position for text
+
+    // Loop through the lines and add them to the PDF
+    lines.forEach((line:any) => {
+      if (y > 280) { // Check if the y position exceeds the page height
+        doc.addPage(); // Add a new page
+        y = 10; // Reset y position for the new page
+      }
+      doc.text(line, 14, y); // Add the line to the PDF
+      y += 10; // Move down for the next line
+    });
+
     doc.save("workout-plan.pdf");
   };
 

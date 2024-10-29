@@ -38,13 +38,14 @@ export async function POST(request: NextRequest) {
                 .from('workouts') // Ensure this is the correct table name
                 .insert([
                     {
-                        uid: uid, // Attach the user's UID
+                        // uid: (await supabase.auth.getUser()).data.user?.id || null, // Attach the user's UID with null fallback
+                        uid : uid, // Attach the user's UID with null fallback
                         workout_data: final, // Store the final variable
                     },
                 ]);
 
             if (error) {
-                console.error("Error inserting data:", error.message); // Log the error
+                console.error("Error inserting data:", error); // Log the error
                 return NextResponse.json({ error: error.message }, { status: 400 });
             }
 

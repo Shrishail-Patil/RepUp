@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,10 +10,12 @@ import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
+import { supabase } from '@/supabaseClient'
 
 export default function ProfilePage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [workoutPlan, setWorkoutPlan] = useState({})
   const [formData, setFormData] = useState({
     gender: '',
@@ -48,6 +50,7 @@ export default function ProfilePage() {
 
   const handleSubmit = async(e: React.FormEvent) => {
     e.preventDefault()
+    setIsSubmitting(true)
     setIsLoading(true)
     const {gender,age, height, weight, activeDays, hasEquipment, goal, goalWeight, injuries, fitnessLevel, workoutSplit} = formData
 
@@ -70,6 +73,7 @@ Requirements:
 4. Include specific weights/intensities
 5.The plan should be perfect and easily understandable.give the plan in markdown format and dont use tables(mandatory).
 
+note: donot give any extra advise and keep the whole plan clean and easy to read. dont make it too long.
 
 Please output a workout plan following this exact format and tailored to my fitness level and weight loss goal. Make sure it incorporates the latest research on fat loss, strength training, and progression for beginners aiming for a 90-day transformation.
         `
@@ -106,9 +110,53 @@ Please output a workout plan following this exact format and tailored to my fitn
       })
     } finally {
       setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
+  useEffect(() => {
+    return () => {
+      // Cleanup function to run on component unmount
+      if (Object.values(formData).every(value => value === '' || value === false)) {
+        // If the form is empty, remove the user from Supabase authentication
+        const removeUser = async () => {
+          const { error } = await supabase.auth.signOut(); // Sign out the user
+          if (error) {
+            console.error('Error signing out:', error);
+          } else {
+            console.log('User signed out successfully');
+          }
+
+          // Remove user from the users table
+          const { data: { user } } = await supabase.auth.getUser(); // Use getUser() method
+          const { data, error: deleteError } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', user?.id); // Assuming you have the user ID
+
+          if (deleteError) {
+            console.error('Error deleting user from users table:', deleteError);
+          } else {
+            console.log('User deleted from users table successfully');
+          }
+        };
+
+        removeUser();
+      }
+    };
+  }, []); // Empty dependency array to run on unmount
+
+  if (isSubmitting) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">Submitting your details...</h2>
+          <p>Please wait while we process your request.</p>
+          <div className="loader"></div> {/* Add a loader here */}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 py-12 px-4 sm:px-6 lg:px-8">

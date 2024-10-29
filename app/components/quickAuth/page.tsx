@@ -40,20 +40,22 @@ export default function QuickAuthPage() {
         const emailExists = await checkEmailExists(session.user.email!);
         
         // Set cookie with UID
-        document.cookie = `uid=${session.user.id}; path=/components/auth;`;
+        document.cookie = `uid=${session.user.id}; path=/;`;
         if (emailExists) {
           console.log('User already exists in database');
           router.push('/components/auth/home')
         
         } else {
+          const { error: insertError } = await supabase
+            .from('users')
+            .insert([{ email: session.user.email }]);
+
           router.push('/components/auth/profile');
 
         // Check if email exists and handle accordingly
         
-          // Email doesn't exist, insert into users table
-          const { error: insertError } = await supabase
-            .from('users')
-            .insert([{ email: session.user.email }]);
+        // Email doesn't exist, insert into users table
+          
 
           if (insertError) {
             console.error('Error inserting email into users table:', insertError);

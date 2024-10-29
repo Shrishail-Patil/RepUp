@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +24,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, ArrowLeft, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 interface Exercise {
   name: string;
@@ -40,34 +46,8 @@ interface Workout {
   exercises: Exercise[];
 }
 
-// Mock data for previous workouts
-const previousWorkouts: Workout[] = [
-  {
-    id: 1,
-    date: "2024-02-20",
-    name: "Full Body Workout",
-    duration: "60 min",
-    exercises: [
-      { name: "Squats", sets: 3, reps: 10, weight: 100 },
-      { name: "Bench Press", sets: 3, reps: 8, weight: 150 },
-      { name: "Deadlifts", sets: 3, reps: 5, weight: 200 },
-    ],
-  },
-  {
-    id: 2,
-    date: "2024-02-18",
-    name: "Upper Body Focus",
-    duration: "45 min",
-    exercises: [
-      { name: "Pull-ups", sets: 3, reps: 8, weight: 0 },
-      { name: "Shoulder Press", sets: 3, reps: 10, weight: 80 },
-      { name: "Bicep Curls", sets: 3, reps: 12, weight: 30 },
-    ],
-  },
-];
-
 export default function WorkoutTrackingPage() {
-  const [workouts, setWorkouts] = useState<Workout[]>(previousWorkouts);
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [newWorkout, setNewWorkout] = useState<Workout>({
     id: 0,
     date: "",
@@ -78,6 +58,23 @@ export default function WorkoutTrackingPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [expandedWorkout, setExpandedWorkout] = useState<number | null>(null);
   const { toast } = useToast();
+
+  // Fetch workouts from Supabase
+  useEffect(() => {
+    const fetchWorkouts = async () => {
+      const { data, error } = await supabase
+        .from('workouts-user')
+        .select('*, exercises(*)'); // Fetch workouts with related exercises
+
+      if (error) {
+        console.error('Error fetching workouts:', error);
+      } else {
+        setWorkouts(data);
+      }
+    };
+
+    fetchWorkouts();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -113,24 +110,59 @@ export default function WorkoutTrackingPage() {
     }));
   };
 
-  const handleAddWorkout = () => {
+  const handleAddWorkout = async () => {
     if (
       newWorkout.name &&
       newWorkout.duration &&
       newWorkout.exercises.length > 0
     ) {
-      const workout = {
-        ...newWorkout,
-        id: workouts.length + 1,
-        date: new Date().toISOString().split("T")[0],
-      };
-      setWorkouts([workout, ...workouts]);
-      setNewWorkout({ id: 0, date: "", name: "", duration: "", exercises: [] });
-      setIsDialogOpen(false);
-      toast({
-        title: "Workout Added",
-        description: "Your workout has been successfully added.",
-      });
+      // Format the date to "DD MMM YY"
+      const formattedDate = new Date().toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: '2-digit',
+      }).replace(/ /g, ' '); // Ensure single space between words
+      console.log(formattedDate)
+
+      const { data, error } = await supabase
+        .from('workouts-user')
+        .insert({
+          date: formattedDate, // Use the formatted date
+          name: newWorkout.name,
+          duration: newWorkout.duration,
+        })
+        .select();
+
+      if (error) {
+        console.error('Error adding workout:', error);
+      } else {
+        const workoutId = data[0].id; // Get the newly created workout ID
+
+        // Insert exercises
+        const exercisesToInsert = newWorkout.exercises.map(exercise => ({
+          workout_id: workoutId,
+          name: exercise.name,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          weight: exercise.weight,
+        }));
+
+        const { error: exerciseError } = await supabase
+          .from('exercises')
+          .insert(exercisesToInsert);
+
+        if (exerciseError) {
+          console.error('Error adding exercises:', exerciseError);
+        } else {
+          // Reset newWorkout state and close dialog
+          setNewWorkout({ id: 0, date: "", name: "", duration: "", exercises: [] });
+          setIsDialogOpen(false);
+          toast({
+            title: "Workout Added",
+            description: "Your workout has been successfully added.",
+          });
+        }
+      }
     }
   };
 
